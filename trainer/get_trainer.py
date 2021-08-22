@@ -6,7 +6,7 @@ def get_trainer(name):
     if name == 'Sintel':
         TrainFramework = sintel_trainer.TrainFramework
     elif name == 'Sintel_AR':
-        TrainFramework = sintel_trainer_ar.TrainFramework
+        TrainFramework = sintel_trainer_ar.TrainFramework#git test
     elif name == 'KITTI':
         TrainFramework = kitti_trainer.TrainFramework
     elif name == 'KITTI_AR':

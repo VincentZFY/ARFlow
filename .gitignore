@@ -1,3 +1,9 @@
 *.py[cod]
 __pycache__/
 .idea/
+
+MPI_Sintel
+models
+outputs
+scene
+Sintel_scene.zip
