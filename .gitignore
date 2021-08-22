@@ -4,5 +4,6 @@ __pycache__/
 
 MPI_Sintel
 outputs
+model
 scene
 Sintel_scene.zip
