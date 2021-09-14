@@ -53,7 +53,7 @@ class TrainFramework(BaseTrainer):
             if self.cfg.run_atst:
                 img1, img2 = data['img1_ph'].to(self.device), data['img2_ph'].to(
                     self.device)
-
+                    
                 # construct augment sample
                 noc_ori = self.loss_func.pyramid_occu_mask1[0]  # non-occluded region
                 s = {'imgs': [img1, img2], 'flows_f': [flow_ori], 'masks_f': [noc_ori]}

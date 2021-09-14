@@ -6,6 +6,7 @@ from path import Path
 from easydict import EasyDict
 
 import basic_train
+import SSL_train
 from logger import init_logger
 
 
@@ -46,4 +47,5 @@ if __name__ == '__main__':
     cfg_str = pprint.pformat(cfg)
     _log.info('=> configurations \n ' + cfg_str)
 
-    basic_train.main(cfg, _log)
+    #basic_train.main(cfg, _log)
+    SSL_train.main(cfg, _log)

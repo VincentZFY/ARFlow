@@ -1,8 +1,9 @@
 import torch
+import torch.nn as nn
 import cv2
 import numpy as np
 from matplotlib.colors import hsv_to_rgb
-
+from torchvision.transforms import  Resize
 
 def load_flow(path):
     if path.endswith('.png'):
@@ -121,3 +122,68 @@ def evaluate_flow(gt_flows, pred_flows, moving_masks=None):
         return res
     else:
         return [error / B]
+
+
+def supervised_loss(gt_flows, pred_flows, moving_masks=None):
+    # credit "undepthflow/eval/evaluate_flow.py"
+    def calculate_error_rate(epe_map, gt_flow, mask):
+        bad_pixels = torch.logical_and(
+            epe_map * mask > 3,
+            epe_map * mask / torch.maximum(
+                torch.sqrt(torch.sum(torch.square(gt_flow), dim=2)), 1e-10) > 0.05)
+        return bad_pixels.sum() / mask.sum() * 100.
+
+    error, error_noc, error_occ, error_move, error_static, error_rate = \
+        0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+    error_move_rate, error_static_rate = 0.0, 0.0
+    B=len(gt_flows)
+    H, W=gt_flows[0].shape[:2]
+    h, w=pred_flows[0].shape[1:3]
+    pred_flows=torch.nn.functional.interpolate(pred_flows, size=(H, W), mode='bilinear', align_corners=True).permute(0, 2, 3, 1)
+    gt_flows=gt_flows.cuda()
+    for gt_flow, pred_flow, i in zip(gt_flows, pred_flows, range(B)):
+        pred_flow[:, :, 0] = pred_flow[:, :, 0] / w * W
+        pred_flow[:, :, 1] = pred_flow[:, :, 1] / h * H
+        
+        flo_pred = pred_flow
+
+        epe_map = torch.sqrt(torch.sum(torch.pow((flo_pred[:,:,:2] - gt_flow[:,:,:2]), 2), dim=2))
+        #print(epe_map)
+        if gt_flow.shape[-1] == 2:
+            error+=torch.mean(epe_map)
+
+        elif gt_flow.shape[-1] == 4:
+            error += torch.sum(epe_map * gt_flow[:,:, 2]) / torch.sum(gt_flow[:,:, 2])
+            noc_mask = gt_flow[:, :, -1]
+            error_noc += torch.sum(epe_map * noc_mask) / torch.sum(noc_mask)
+
+            error_occ += torch.sum(epe_map * (gt_flow[:, :, 2] - noc_mask)) / max(
+                torch.sum(gt_flow[:, :, 2] - noc_mask), 1.0)
+
+            error_rate += calculate_error_rate(epe_map, gt_flow[:, :, 0:2],
+                                               gt_flow[:, :, 2])
+
+            if moving_masks is not None:
+                move_mask = moving_masks[i]
+
+                error_move_rate += calculate_error_rate(
+                    epe_map, gt_flow[:, :, 0:2], gt_flow[:, :, 2] * move_mask)
+                error_static_rate += calculate_error_rate(
+                    epe_map, gt_flow[:, :, 0:2],
+                    gt_flow[:, :, 2] * (1.0 - move_mask))
+
+                error_move += torch.sum(epe_map * gt_flow[:, :, 2] *
+                                     move_mask) / torch.sum(gt_flow[:, :, 2] *
+                                                         move_mask)
+                error_static += torch.sum(epe_map * gt_flow[:, :, 2] * (
+                        1.0 - move_mask)) / torch.sum(gt_flow[:, :, 2] *
+                                                   (1.0 - move_mask))
+
+    if gt_flows[0].shape[-1] == 4:
+        res = [error / B, error_noc / B, error_occ / B, error_rate / B]
+        if moving_masks is not None:
+            res += [error_move / B, error_static / B]
+        return res
+    else:
+        return [error / B]
+

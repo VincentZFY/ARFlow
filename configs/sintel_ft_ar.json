@@ -55,6 +55,14 @@
         "warp_pad": "border",
         "with_bk": true
     },
+    "supervised_loss": {
+        "div": 0.05,
+        "p": 2,
+        "eps": 0.01,
+        "q": 0.4,
+        "type": "MultiScaleEPE"
+    },
+
     "model": {
         "n_frames": 2,
         "reduce_dense": true,
@@ -65,15 +73,15 @@
     "train": {
         "ar_eps": 0.0,
         "ar_q": 1.0,
-        "batch_size": 2,
+        "batch_size": 32,
         "beta": 0.999,
         "bias_decay": 0,
-        "epoch_num": 1000,
+        "epoch_num": 4000,
         "epoch_size": 1000,
         "lr": 0.0001,
         "mask_st": true,
         "momentum": 0.9,
-        "n_gpu": 1,
+        "n_gpu": 2,
         "optim": "adam",
         "ot_compact": 50,
         "ot_fast": true,
@@ -84,7 +92,7 @@
         "ot_slic": true,
         "pretrained_model": "./checkpoints/Sintel/pwclite_raw.tar",
         "print_freq": 10,
-        "record_freq": 50,
+        "record_freq": 20,
         "run_atst": true,
         "run_ot": false,
         "run_st": true,
@@ -92,6 +100,7 @@
         "st_cfg": {
             "add_noise": true,
             "hflip": true,
+            "crop":[384,832],
             "rotate": [
                 -0.2,
                 0.2,
@@ -122,5 +131,5 @@
         "weight_decay": 1e-06,
         "workers": 4
     },
-    "trainer": "Sintel_AR"
+    "trainer": "Sintel_AR_SSL"
 }

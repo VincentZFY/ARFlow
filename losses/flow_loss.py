@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .loss_blocks import SSIM, smooth_grad_1st, smooth_grad_2nd, TernaryLoss
@@ -112,3 +113,45 @@ class unFlowLoss(nn.modules.Module):
         total_loss = warp_loss + smooth_loss
 
         return total_loss, warp_loss, smooth_loss, pyramid_flows[0].abs().mean()
+
+class MultiScaleEPE(nn.modules.Module):
+    def __init__(self, cfg):
+        super(MultiScaleEPE, self).__init__()
+        self.cfg = cfg
+        self.w_level = [0.32, 0.08, 0.02, 0.01, 0.005]
+
+    def forward(self, output, target):
+        """
+
+        :param output: n * [B x 2 x h x w]
+        :param target: B x 2 x H x W
+        :return:
+        """
+
+        pyramid_flows = output
+        flow_gt = target * self.cfg.div
+
+        pyramid_flow_losses = []
+        pyramid_epe = []
+        for i, flow_pred in enumerate(pyramid_flows):
+            b, _, h, w = flow_pred.size()
+            _, _, H, W = flow_gt.size()
+            flow_pred[:, 0] = flow_pred[:, 0] / w * W * self.cfg.div
+            flow_pred[:, 1] = flow_pred[:, 1] / h * H * self.cfg.div
+            flow_gt_scaled = F.interpolate(flow_gt, (h, w), mode='area')
+            loss_flow = elementwise_loss(flow_pred, flow_gt_scaled, p=self.cfg.p,
+                                         eps=self.cfg.eps, q=self.cfg.q).sum() / b
+            epe = elementwise_loss(flow_pred, flow_gt_scaled, p=2, eps=1e-7, q=1).mean()
+            pyramid_flow_losses.append(loss_flow)
+            pyramid_epe.append(epe)
+
+        total_loss = sum([l * w for l, w in zip(pyramid_flow_losses, self.w_level)])
+        return total_loss, pyramid_epe[:4]
+
+def elementwise_loss(pred, gt, p=2, eps=0.01, q=0.4, mask=None):
+    diff = pred - gt
+    loss_map = torch.pow(torch.norm(diff, p=p, dim=1, keepdim=True) + eps, q)
+    if mask is not None:
+        loss_map *= mask
+    return loss_map
+

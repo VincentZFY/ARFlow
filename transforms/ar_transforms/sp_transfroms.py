@@ -100,7 +100,7 @@ class RandomMirror(nn.Module):
 
 
 class RandomAffineFlow(nn.Module):
-    def __init__(self, cfg, addnoise=True):
+    def __init__(self, cfg, addnoise=True, crop=None):
         super(RandomAffineFlow, self).__init__()
         self.cfg = cfg
         self._interp2 = Interp2(clamp=False)
@@ -109,6 +109,7 @@ class RandomAffineFlow(nn.Module):
         self._identity = _IdentityParams()
         self._random_mirror = RandomMirror(cfg.vflip) if cfg.hflip else RandomMirror(p=1)
         self._addnoise = addnoise
+        self._crop = crop
 
         self.register_buffer("_noise1", torch.FloatTensor())
         self.register_buffer("_noise2", torch.FloatTensor())
@@ -226,7 +227,7 @@ class RandomAffineFlow(nn.Module):
             squeeze.uniform_(min_squeeze, max_squeeze)
             tx.uniform_(-max_translate, max_translate)
             ty.uniform_(-max_translate, max_translate)
-            phi.uniform_(min_rotate, max_rotate)
+            phi.uniform_(-min_rotate, max_rotate)
 
             # construct affine parameters
             sx = zoom * squeeze
@@ -242,7 +243,7 @@ class RandomAffineFlow(nn.Module):
 
             theta_transform = torch.cat([b1, b2, b3, b4, b5, b6], dim=1)
             theta_try = apply_transform_to_params(theta0, theta_transform)
-            thetas = invalid.float() * theta_try + (1 - invalid).float() * thetas
+            thetas = invalid.float() * theta_try + (1 - invalid.float()).float() * thetas
 
             # compute new invalid ones
             invalid = self.find_invalid(width=width, height=height, thetas=thetas)
@@ -280,11 +281,27 @@ class RandomAffineFlow(nn.Module):
         transformed = self._flow_interp2(new_flow, xq, yq)
         return transformed
 
+    def random_crop(self, imgs, flows_f):
+
+        _, _, height, width = imgs[0].size()
+        crop_height, crop_width = self._crop
+
+        # get starting positions
+        self._x.random_(0, width - crop_width + 1)
+        self._y.random_(0, height - crop_height + 1)
+        str_x = int(self._x)
+        str_y = int(self._y)
+        end_x = int(self._x + crop_width)
+        end_y = int(self._y + crop_height)
+
+        imgs = [im[:, :, str_y:end_y, str_x:end_x] for im in imgs]
+        flows_f = [flo_f[:, :, str_y:end_y, str_x:end_x] for flo_f in flows_f]
+        return imgs, flows_f
+
     def forward(self, data):
         # 01234 flow 12 21 23 32
         imgs = data['imgs']
         flows_f = data['flows_f']
-        masks_f = data['masks_f']
 
         batch_size, _, height, width = imgs[0].size()
 
@@ -309,7 +326,7 @@ class RandomAffineFlow(nn.Module):
                     max_translate=self.cfg.trans[1],
                     min_zoom=self.cfg.zoom[2], max_zoom=self.cfg.zoom[3],
                     min_squeeze=self.cfg.squeeze[2], max_squeeze=self.cfg.squeeze[3],
-                    min_rotate=self.cfg.rotate[2], max_rotate=self.cfg.rotate[2],
+                    min_rotate=-self.cfg.rotate[2], max_rotate=self.cfg.rotate[2],
                     validate_size=[height, width])
             )
 
@@ -319,14 +336,13 @@ class RandomAffineFlow(nn.Module):
         # 01234
         imgs = [self.transform_image(im, theta) for im, theta in zip(imgs, theta_list)]
 
-        if len(imgs) > 2:
+        if len(imgs) == 5:  # unsupervised multi-frame
             theta_list = theta_list[1:-1]
-        # 12 23
+        elif len(imgs) == 3:    # supervised learning multi-frame
+            theta_list = theta_list[1:]
+
         flows_f = [self.transform_flow(flo, theta1, theta2) for flo, theta1, theta2 in
                    zip(flows_f, theta_list[:-1], theta_list[1:])]
-
-        masks_f = [self.transform_image(mask, theta) for mask, theta in
-                   zip(masks_f, theta_list)]
 
         if self._addnoise:
             stddev = np.random.uniform(0.0, 0.04)
@@ -336,7 +352,21 @@ class RandomAffineFlow(nn.Module):
                 im.add_(noise)
                 im.clamp_(0.0, 1.0)
 
+        if self._crop is not None:
+            imgs, flows_f = self.random_crop(imgs, flows_f)
+
         data['imgs'] = imgs
         data['flows_f'] = flows_f
-        data['masks_f'] = masks_f
+
+        if 'masks_f' in data:
+            masks_f = data['masks_f']
+            masks_f = [self.transform_image(mask, theta) for mask, theta in
+                       zip(masks_f, theta_list)]
+            data['masks_f'] = masks_f
+
+        if 'flows_f_pred' in data:
+            flows_pred = data['flows_f_pred']
+            flows_pred = [self.transform_flow(flo, theta1, theta2) for flo, theta1, theta2 in
+                          zip(flows_pred, theta_list[:-1], theta_list[1:])]
+            data['flows_f_pred'] = flows_pred
         return data
