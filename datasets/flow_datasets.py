@@ -218,21 +218,21 @@ class SintelSSL(ImgSeqDatasetSSL):
                                'bamboo_2', 'bandage_2', 'cave_4', 'market_5', 'market_6', 'mountain_1', 'shaman_3',
                                'sleeping_2', 'temple_3']  # Unofficial train-val split
 
-        # self.supervised_scene = ['alley_1', 'ambush_5', 'bamboo_1', 'bandage_1', 'cave_2', 'market_2', 'shaman_2',
-        #                        'sleeping_1', 'temple_2']  
         self.supervised_scene = ['alley_1', 'ambush_5', 'bamboo_1', 'bandage_1', 'cave_2', 'market_2', 'shaman_2',
-                               'sleeping_1', 'temple_2', 'alley_2', 'ambush_2', 'ambush_4', 'ambush_6', 'ambush_7',
-                               'bamboo_2', 'bandage_2', 'cave_4', 'market_5', 'market_6', 'mountain_1', 'shaman_3',
-                               'sleeping_2', 'temple_3']
-        self.unsupervised_scene = ['alley_1', 'ambush_5', 'bamboo_1', 'bandage_1', 'cave_2', 'market_2', 'shaman_2',
-                               'sleeping_1', 'temple_2', 'alley_2', 'ambush_2', 'ambush_4', 'ambush_6', 'ambush_7',
-                               'bamboo_2', 'bandage_2', 'cave_4', 'market_5', 'market_6', 'mountain_1', 'shaman_3',
-                               'sleeping_2', 'temple_3']  
+                               'sleeping_1', 'temple_2']  
+        # self.supervised_scene = ['alley_1', 'ambush_5', 'bamboo_1', 'bandage_1', 'cave_2', 'market_2', 'shaman_2',
+        #                        'sleeping_1', 'temple_2', 'alley_2', 'ambush_2', 'ambush_4', 'ambush_6', 'ambush_7',
+        #                        'bamboo_2', 'bandage_2', 'cave_4', 'market_5', 'market_6', 'mountain_1', 'shaman_3',
+        #                        'sleeping_2', 'temple_3']
+        # self.unsupervised_scene = ['alley_1', 'ambush_5', 'bamboo_1', 'bandage_1', 'cave_2', 'market_2', 'shaman_2',
+        #                        'sleeping_1', 'temple_2', 'alley_2', 'ambush_2', 'ambush_4', 'ambush_6', 'ambush_7',
+        #                        'bamboo_2', 'bandage_2', 'cave_4', 'market_5', 'market_6', 'mountain_1', 'shaman_3',
+        #                        'sleeping_2', 'temple_3']  
         #self.supervised_scene = ['alley_1']  
         # self.supervised_scene = ['alley_1', 'ambush_5', 'bamboo_1', 'cave_2', 'market_2']  # 1/4 data
-        # self.unsupervised_scene = ['alley_2', 'ambush_2', 'ambush_4', 'ambush_6', 'ambush_7', 'bamboo_2','bandage_1',
-        #                        'bandage_2', 'cave_4', 'market_5', 'market_6', 'mountain_1', 'shaman_2','shaman_3',
-        #                        'sleeping_1', 'sleeping_2',  'temple_2','temple_3']  # training scene=supervised scene+unsupervised scene
+        self.unsupervised_scene = ['alley_2', 'ambush_2', 'ambush_4', 'ambush_6', 'ambush_7', 'bamboo_2','bandage_1',
+                               'bandage_2', 'cave_4', 'market_5', 'market_6', 'mountain_1', 'shaman_2','shaman_3',
+                               'sleeping_1', 'sleeping_2',  'temple_2','temple_3']  # training scene=supervised scene+unsupervised scene
 
         root = Path(root) / split
         super(SintelSSL, self).__init__(root, n_frames, input_transform=transform,

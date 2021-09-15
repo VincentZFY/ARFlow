@@ -28,7 +28,7 @@ class BaseTrainerSSL:
         self.supervised_loss_func = supervised_loss_func
 
         self.best_error = np.inf
-        self.i_epoch = 0
+        self.i_epoch = self._get_epoch()
         self.i_iter = 0
 
     @abstractmethod
@@ -87,8 +87,21 @@ class BaseTrainerSSL:
                                          eps=1e-7)
         else:
             raise NotImplementedError(self.cfg.optim)
+
+        if self.cfg.load_trained:
+            checkpoint = torch.load(self.cfg.pretrained_model)
+            optimizer.load_state_dict(checkpoint['optimizer'])
         return optimizer
 
+
+    def _get_epoch(self):
+        if self.cfg.load_trained:
+            checkpoint = torch.load(self.cfg.pretrained_model)
+            i_epoch = checkpoint['epoch']
+        else:
+            i_epoch = 0
+        return i_epoch
+        
     def _prepare_device(self, n_gpu_use):
         """
         setup GPU device if available, move model into configured device
@@ -114,6 +127,7 @@ class BaseTrainerSSL:
             self.best_error = error
 
         models = {'epoch': self.i_epoch,
-                  'state_dict': self.model.module.state_dict()}
+                  'state_dict': self.model.module.state_dict(),
+                  'optimizer': self.optimizer.state_dict()}
 
         save_checkpoint(self.save_root, models, name, is_best)

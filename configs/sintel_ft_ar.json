@@ -9,7 +9,7 @@
             "gamma": true,
             "gblur": true
         },
-        "root_sintel": "/home/zfy/code/of/ARFlow/MPI_Sintel",
+        "root_sintel": "/public/home/zhufy/code/of/of_data/MPI-Sintel-complete",
         "run_at": true,
         "test_shape": [
             448,
@@ -73,10 +73,10 @@
     "train": {
         "ar_eps": 0.0,
         "ar_q": 1.0,
-        "batch_size": 32,
+        "batch_size": 16,
         "beta": 0.999,
         "bias_decay": 0,
-        "epoch_num": 4000,
+        "epoch_num": 10000,
         "epoch_size": 1000,
         "lr": 0.0001,
         "mask_st": true,
@@ -91,12 +91,13 @@
         ],
         "ot_slic": true,
         "pretrained_model": "./checkpoints/Sintel/pwclite_raw.tar",
+        "load_trained":false,
         "print_freq": 10,
         "record_freq": 20,
         "run_atst": true,
         "run_ot": false,
         "run_st": true,
-        "save_iter": 10000,
+        "save_iter": 1,
         "st_cfg": {
             "add_noise": true,
             "hflip": true,

@@ -22,8 +22,8 @@ class TrainFramework(BaseTrainerSSL):
         am_batch_time = AverageMeter()
         am_data_time = AverageMeter()
 
-        # key_meter_names = ['loss','l_supervised','EPE_0', 'EPE_1', 'EPE_2', 'EPE_3','l_weak','l_unsupervised', 'l_ph', 'l_sm', 'flow_mean']
-        key_meter_names = ['loss','l_supervised','EPE_0', 'EPE_1', 'EPE_2', 'EPE_3']
+        key_meter_names = ['loss','l_supervised','EPE_0', 'EPE_1', 'EPE_2', 'EPE_3','l_weak','l_unsupervised', 'l_ph', 'l_sm', 'flow_mean']
+        # key_meter_names = ['loss','l_supervised','EPE_0', 'EPE_1', 'EPE_2', 'EPE_3']
         key_meters = AverageMeter(i=len(key_meter_names), precision=4)
 
         self.model.train()
@@ -84,57 +84,57 @@ class TrainFramework(BaseTrainerSSL):
             l_supervised, pyramid_epe = self.supervised_loss_func(flows_12, flow_gt)
             loss += l_supervised / 10000
             
-            # try:
-            #     datau = unsupervised_iter.next()
-            # except:
-            #     unsupervised_iter = iter(self.unsupervised_loader)
-            #     datau = unsupervised_iter.next()
-            # imgu1, imgu2 = datau['img1_ph'].to(self.device), datau['img2_ph'].to(self.device)
-            # imgu1_og, imgu2_og = datau['img1'].to(self.device), datau['img2'].to(self.device)
-            # imgu_pair = torch.cat([imgu1, imgu2], 1)
-            # imgu_pair_og = torch.cat([imgu1_og, imgu2_og], 1)
+            try:
+                datau = unsupervised_iter.next()
+            except:
+                unsupervised_iter = iter(self.unsupervised_loader)
+                datau = unsupervised_iter.next()
+            imgu1, imgu2 = datau['img1_ph'].to(self.device), datau['img2_ph'].to(self.device)
+            imgu1_og, imgu2_og = datau['img1'].to(self.device), datau['img2'].to(self.device)
+            imgu_pair = torch.cat([imgu1, imgu2], 1)
+            imgu_pair_og = torch.cat([imgu1_og, imgu2_og], 1)
 
-            # resu_dict_og = self.model(imgu_pair_og, with_bk=True)
-            # flowsu_12_og, flowsu_21_og = resu_dict_og['flows_fw'], resu_dict_og['flows_bw']
-            # flowsu_og = [torch.cat([flo12, flo21], 1) for flo12, flo21 in
-            #          zip(flowsu_12_og, flowsu_21_og)]
+            resu_dict_og = self.model(imgu_pair_og, with_bk=True)
+            flowsu_12_og, flowsu_21_og = resu_dict_og['flows_fw'], resu_dict_og['flows_bw']
+            flowsu_og = [torch.cat([flo12, flo21], 1) for flo12, flo21 in
+                     zip(flowsu_12_og, flowsu_21_og)]
 
-            # l_weak, l_ph, l_sm, flow_mean = self.loss_func(flowsu_og, imgu_pair_og)
+            l_weak, l_ph, l_sm, flow_mean = self.loss_func(flowsu_og, imgu_pair_og)
 
             # # resu_dict = self.model(imgu_pair, with_bk=True)
             # # flowsu_12, flowsu_21 = resu_dict['flows_fw'], resu_dict['flows_bw']
             # # flowsu = [torch.cat([flo12, flo21], 1) for flo12, flo21 in
             # #          zip(flowsu_12, flowsu_21)]
-            # loss += l_weak
+            loss += l_weak
 
-            # flowsu_weak = resu_dict_og['flows_fw'][0].detach()
+            flowsu_weak = resu_dict_og['flows_fw'][0].detach()
   
-            # noc_ori = self.loss_func.pyramid_occu_mask1[0]  # non-occluded region
-            # s = {'imgs': [imgu1, imgu2], 'flows_f': [flowsu_weak], 'masks_f': [noc_ori]}
-            # st_res = self.sp_transform(deepcopy(s))
-            # flow_t, noc_t = st_res['flows_f'][0], st_res['masks_f'][0]
+            noc_ori = self.loss_func.pyramid_occu_mask1[0]  # non-occluded region
+            s = {'imgs': [imgu1, imgu2], 'flows_f': [flowsu_weak], 'masks_f': [noc_ori]}
+            st_res = self.sp_transform(deepcopy(s))
+            flow_t, noc_t = st_res['flows_f'][0], st_res['masks_f'][0]
 
-            # # run 2nd pass
-            # img_pair = torch.cat(st_res['imgs'], 1)
-            # flow_t_pred = self.model(img_pair, with_bk=False)['flows_fw'][0]
+            # run 2nd pass
+            img_pair = torch.cat(st_res['imgs'], 1)
+            flow_t_pred = self.model(img_pair, with_bk=False)['flows_fw'][0]
 
-            # if not self.cfg.mask_st:
-            #     noc_t = torch.ones_like(noc_t)
-            # l_unsupervised = ((flow_t_pred - flow_t).abs() + self.cfg.ar_eps) ** self.cfg.ar_q
-            # l_unsupervised = (l_unsupervised * noc_t).mean() / (noc_t.mean() + 1e-7)
+            if not self.cfg.mask_st:
+                noc_t = torch.ones_like(noc_t)
+            l_unsupervised = ((flow_t_pred - flow_t).abs() + self.cfg.ar_eps) ** self.cfg.ar_q
+            l_unsupervised = (l_unsupervised * noc_t).mean() / (noc_t.mean() + 1e-7)
 
-            # loss += l_unsupervised*0.01
+            loss += l_unsupervised
 
             # update meters
-            # key_meters.update(
-            #     [loss.item(), l_supervised.item(), pyramid_epe[0].item(), pyramid_epe[1].item(),
-            #     pyramid_epe[2].item(),pyramid_epe[3].item(),l_weak.item(),
-            #     l_unsupervised.item(), l_ph.item(), l_sm.item(), flow_mean.item()],
-            #     img_pair.size(0))
             key_meters.update(
                 [loss.item(), l_supervised.item(), pyramid_epe[0].item(), pyramid_epe[1].item(),
-                 pyramid_epe[2].item(),pyramid_epe[3].item()],
+                pyramid_epe[2].item(),pyramid_epe[3].item(),l_weak.item(),
+                l_unsupervised.item(), l_ph.item(), l_sm.item(), flow_mean.item()],
                 img_pair.size(0))
+            # key_meters.update(
+            #     [loss.item(), l_supervised.item(), pyramid_epe[0].item(), pyramid_epe[1].item(),
+            #      pyramid_epe[2].item(),pyramid_epe[3].item()],
+            #     img_pair.size(0))
 
 
             # compute gradient and do optimization step
@@ -225,6 +225,7 @@ class TrainFramework(BaseTrainerSSL):
         # In order to reduce the space occupied during debugging,
         # only the model with more than cfg.save_iter iterations will be saved.
         if self.i_iter > self.cfg.save_iter:
+            print(self.i_epoch)
             self.save_model(all_error_avgs[0] + all_error_avgs[1], name='Sintel')
 
         return all_error_avgs, all_error_names
