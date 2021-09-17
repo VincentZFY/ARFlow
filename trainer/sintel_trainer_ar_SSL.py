@@ -22,8 +22,13 @@ class TrainFramework(BaseTrainerSSL):
         am_batch_time = AverageMeter()
         am_data_time = AverageMeter()
 
-        key_meter_names = ['loss','l_supervised','EPE_0', 'EPE_1', 'EPE_2', 'EPE_3','l_weak','l_unsupervised', 'l_ph', 'l_sm', 'flow_mean']
-        # key_meter_names = ['loss','l_supervised','EPE_0', 'EPE_1', 'EPE_2', 'EPE_3']
+        if self.cfg.run_unsupervised:
+            if self.cfg.run_weak:
+                key_meter_names = ['loss', 'l_supervised', 'EPE_0', 'EPE_1', 'EPE_2', 'EPE_3', 'l_weak', 'l_unsupervised', 'l_ph', 'l_sm', 'flow_mean']
+            else:
+                 key_meter_names = ['loss', 'l_supervised', 'EPE_0', 'EPE_1', 'EPE_2', 'EPE_3', 'l_unsupervised']
+        else:
+            key_meter_names = ['loss','l_supervised','EPE_0', 'EPE_1', 'EPE_2', 'EPE_3']
         key_meters = AverageMeter(i=len(key_meter_names), precision=4)
 
         self.model.train()
@@ -52,12 +57,6 @@ class TrainFramework(BaseTrainerSSL):
             # save_img2 = save_img2.squeeze(0)
             # save_img2 = transforms.ToPILImage()(save_img2)
             # save_img2.save("./save_img2.jpg")
-
-            s_supervised = {'imgs': [data['img1_ph'].to(self.device),
-                              data['img2_ph'].to(self.device)],
-                     'flows_f': [data['target']['flow'].to(self.device)]}
-            s_supervised = self.sp_transform(s_supervised)
-            
             # sp_img1 = s_supervised['imgs'][0][0].cpu().clone()
             # sp_img1 = sp_img1.squeeze(0)
             # sp_img1 = transforms.ToPILImage()(sp_img1)
@@ -69,73 +68,79 @@ class TrainFramework(BaseTrainerSSL):
             # sp_flow = flow_to_image(s_supervised['flows_f'][0][0].cpu().numpy().transpose([1, 2, 0]))
             # sp_flow = transforms.ToPILImage()(sp_flow)
             # sp_flow.save('./sp_flow.jpg')
-
-            img_pair = torch.cat(s_supervised['imgs'], 1).to(self.device)
-            flow_gt = s_supervised['flows_f'][0].to(self.device)
-
-            # measure data loading time
-            am_data_time.update(time.time() - end)
-            loss = 0.0
-            flows_12 = self.model(img_pair, with_bk=False)['flows_fw']
             # pred_flows = flow_to_image(flows_12[0][0].detach().cpu().numpy().transpose([1, 2, 0]))
             # pred_flows = transforms.ToPILImage()(pred_flows)
             # pred_flows.save('./pred_flow.jpg')
-
-            l_supervised, pyramid_epe = self.supervised_loss_func(flows_12, flow_gt)
-            loss += l_supervised / 10000
             
-            try:
-                datau = unsupervised_iter.next()
-            except:
-                unsupervised_iter = iter(self.unsupervised_loader)
-                datau = unsupervised_iter.next()
-            imgu1, imgu2 = datau['img1_ph'].to(self.device), datau['img2_ph'].to(self.device)
-            imgu1_og, imgu2_og = datau['img1'].to(self.device), datau['img2'].to(self.device)
-            imgu_pair = torch.cat([imgu1, imgu2], 1)
-            imgu_pair_og = torch.cat([imgu1_og, imgu2_og], 1)
+            if self.cfg.run_supervised:
+                s_supervised = {'imgs': [data['img1_ph'].to(self.device),
+                                data['img2_ph'].to(self.device)],
+                        'flows_f': [data['target']['flow'].to(self.device)]}
+                s_supervised = self.sp_transform(s_supervised)
+                
+            
+                
+                img_pair = torch.cat(s_supervised['imgs'], 1).to(self.device)
+                flow_gt = s_supervised['flows_f'][0].to(self.device)
 
-            resu_dict_og = self.model(imgu_pair_og, with_bk=True)
-            flowsu_12_og, flowsu_21_og = resu_dict_og['flows_fw'], resu_dict_og['flows_bw']
-            flowsu_og = [torch.cat([flo12, flo21], 1) for flo12, flo21 in
-                     zip(flowsu_12_og, flowsu_21_og)]
+                # measure data loading time
+                am_data_time.update(time.time() - end)
+                loss = 0.0
+                flows_12 = self.model(img_pair, with_bk=False)['flows_fw']
+                
 
-            l_weak, l_ph, l_sm, flow_mean = self.loss_func(flowsu_og, imgu_pair_og)
+                l_supervised, pyramid_epe = self.supervised_loss_func(flows_12, flow_gt)
+                loss += l_supervised * self.cfg.supervised_para
+                
+            if self.cfg.run_unsupervised:
+                try:
+                    datau = unsupervised_iter.next()
+                except:
+                    unsupervised_iter = iter(self.unsupervised_loader)
+                    datau = unsupervised_iter.next()
+                imgu1, imgu2 = datau['img1_ph'].to(self.device), datau['img2_ph'].to(self.device)
+                imgu1_og, imgu2_og = datau['img1'].to(self.device), datau['img2'].to(self.device)
+                imgu_pair = torch.cat([imgu1, imgu2], 1)
+                imgu_pair_og = torch.cat([imgu1_og, imgu2_og], 1)
+                resu_dict_og = self.model(imgu_pair_og, with_bk=True)
+                
 
-            # # resu_dict = self.model(imgu_pair, with_bk=True)
-            # # flowsu_12, flowsu_21 = resu_dict['flows_fw'], resu_dict['flows_bw']
-            # # flowsu = [torch.cat([flo12, flo21], 1) for flo12, flo21 in
-            # #          zip(flowsu_12, flowsu_21)]
-            loss += l_weak
+                if self.cfg.run_weak:
+                    flowsu_12_og, flowsu_21_og = resu_dict_og['flows_fw'], resu_dict_og['flows_bw']
+                    flowsu_og = [torch.cat([flo12, flo21], 1) for flo12, flo21 in
+                            zip(flowsu_12_og, flowsu_21_og)]
+                    l_weak, l_ph, l_sm, flow_mean = self.loss_func(flowsu_og, imgu_pair_og)
+                    loss += l_weak * self.cfg.weak_para
+                    
 
-            flowsu_weak = resu_dict_og['flows_fw'][0].detach()
-  
-            noc_ori = self.loss_func.pyramid_occu_mask1[0]  # non-occluded region
-            s = {'imgs': [imgu1, imgu2], 'flows_f': [flowsu_weak], 'masks_f': [noc_ori]}
-            st_res = self.sp_transform(deepcopy(s))
-            flow_t, noc_t = st_res['flows_f'][0], st_res['masks_f'][0]
+                flowsu_weak = resu_dict_og['flows_fw'][0].detach()
+    
+                noc_ori = self.loss_func.pyramid_occu_mask1[0]  # non-occluded region
+                s = {'imgs': [imgu1, imgu2], 'flows_f': [flowsu_weak], 'masks_f': [noc_ori]}
+                st_res = self.sp_transform(deepcopy(s))
+                flow_t, noc_t = st_res['flows_f'][0], st_res['masks_f'][0]
+                img_pair = torch.cat(st_res['imgs'], 1)
+                flow_t_pred = self.model(img_pair, with_bk=False)['flows_fw'][0]
 
-            # run 2nd pass
-            img_pair = torch.cat(st_res['imgs'], 1)
-            flow_t_pred = self.model(img_pair, with_bk=False)['flows_fw'][0]
+                if not self.cfg.mask_st:
+                    noc_t = torch.ones_like(noc_t)
+                l_unsupervised = ((flow_t_pred - flow_t).abs() + self.cfg.ar_eps) ** self.cfg.ar_q
+                l_unsupervised = (l_unsupervised * noc_t).mean() / (noc_t.mean() + 1e-7)
 
-            if not self.cfg.mask_st:
-                noc_t = torch.ones_like(noc_t)
-            l_unsupervised = ((flow_t_pred - flow_t).abs() + self.cfg.ar_eps) ** self.cfg.ar_q
-            l_unsupervised = (l_unsupervised * noc_t).mean() / (noc_t.mean() + 1e-7)
-
-            loss += l_unsupervised
+                loss += l_unsupervised*cfg.unsupervised_para
 
             # update meters
-            key_meters.update(
-                [loss.item(), l_supervised.item(), pyramid_epe[0].item(), pyramid_epe[1].item(),
-                pyramid_epe[2].item(),pyramid_epe[3].item(),l_weak.item(),
-                l_unsupervised.item(), l_ph.item(), l_sm.item(), flow_mean.item()],
-                img_pair.size(0))
-            # key_meters.update(
-            #     [loss.item(), l_supervised.item(), pyramid_epe[0].item(), pyramid_epe[1].item(),
-            #      pyramid_epe[2].item(),pyramid_epe[3].item()],
-            #     img_pair.size(0))
-
+            if self.cfg.run_unsupervised:
+                if self.cfg.run_weak:
+                    key_meters.update([loss.item(), l_supervised.item(), pyramid_epe[0].item(), pyramid_epe[1].item(),
+                        pyramid_epe[2].item(), pyramid_epe[3].item(), l_weak.item(), l_unsupervised.item(), l_ph.item(),
+                        l_sm.item(), flow_mean.item()], img_pair.size(0))
+                else:
+                    key_meters.update([loss.item(), l_supervised.item(), pyramid_epe[0].item(), pyramid_epe[1].item(),
+                        pyramid_epe[2].item(), pyramid_epe[3].item(), l_unsupervised.item()], img_pair.size(0))
+            else:
+                key_meters.update([loss.item(), l_supervised.item(), pyramid_epe[0].item(), pyramid_epe[1].item(),
+                        pyramid_epe[2].item(), pyramid_epe[3].item()], img_pair.size(0))
 
             # compute gradient and do optimization step
             self.optimizer.zero_grad()
