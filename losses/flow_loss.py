@@ -155,3 +155,87 @@ def elementwise_loss(pred, gt, p=2, eps=0.01, q=0.4, mask=None):
         loss_map *= mask
     return loss_map
 
+class LossRAFT(nn.modules.Module):
+    def __init__(self, cfg):
+        super(LossRAFT, self).__init__()
+        self.cfg = cfg
+
+    def forward(self, output, target):
+        flow_list = output
+        flow_gt = target * self.cfg.div
+        b, _, h, w = flow_list[0].size()
+        _, _, H, W = flow_gt.size()
+        flow_gt_scaled = F.interpolate(flow_gt, (h, w), mode='area')
+
+        # exlude invalid pixels and extremely large diplacements
+        valid = (flow_gt_scaled.abs().sum(dim=1) < 1000).float().unsqueeze(1)
+
+        pyramid_flow_losses = []
+        pyramid_epe = []
+        for i, flow_pred in enumerate(flow_list):
+            flow_pred[:, 0] = flow_pred[:, 0] / w * W * self.cfg.div
+            flow_pred[:, 1] = flow_pred[:, 1] / h * H * self.cfg.div
+            loss_flow = elementwise_loss(flow_pred, flow_gt_scaled, p=self.cfg.p,
+                                         eps=self.cfg.eps, q=self.cfg.q, mask=valid).mean()
+            epe = elementwise_loss(flow_pred, flow_gt_scaled, p=2, eps=1e-7, q=1).mean()
+            pyramid_flow_losses.append(loss_flow)
+            pyramid_epe.append(epe)
+
+        total_loss = sum(
+            [l * self.cfg.w_gama ** i for i, l in enumerate(pyramid_flow_losses)])
+        return total_loss, pyramid_epe[:4]
+
+class unFlowLossRAFT(unFlowLoss):
+    def __init__(self, cfg):
+        super(unFlowLossRAFT, self).__init__(cfg)
+        self.w_gama = cfg.w_gama
+
+    def forward(self, output, target):
+        flows = output
+        b, _, h, w = flows[0].size()
+
+        im1_origin = target[:, :3]
+        im2_origin = target[:, 3:]
+
+        # resize images to match the size of layer
+        im1_scaled = F.interpolate(im1_origin, (h, w), mode='area')
+        im2_scaled = F.interpolate(im2_origin, (h, w), mode='area')
+
+        total_loss_warp = total_loss_smooth = 0
+        for i, flow in enumerate(flows):
+            im1_recons = flow_warp(im2_scaled, flow[:, :2], pad=self.cfg.warp_pad)
+            im2_recons = flow_warp(im1_scaled, flow[:, 2:], pad=self.cfg.warp_pad)
+
+            # import cv2
+            # cv2.imshow('img1', tensor2img(im1_scaled))
+            # cv2.imshow('img1_r', tensor2img(im1_recons))
+            # cv2.imshow('img2', tensor2img(im2_scaled))
+            # cv2.imshow('img2_r', tensor2img(im2_recons))
+            #
+            # cv2.imshow('flow_12', batch_flow_vis(flow[:, :2]))
+            # cv2.imshow('flow_21', batch_flow_vis(flow[:, 2:]))
+            # cv2.waitKey()
+
+            if self.cfg.occ_from_back:
+                occu_mask1 = 1 - get_occu_mask_backward(flow[:, 2:], th=0.2)
+                occu_mask2 = 1 - get_occu_mask_backward(flow[:, :2], th=0.2)
+            else:
+                occu_mask1 = 1 - get_occu_mask_bidirection(flow[:, :2], flow[:, 2:])
+                occu_mask2 = 1 - get_occu_mask_bidirection(flow[:, 2:], flow[:, :2])
+
+            loss_warp = self.loss_photomatric(im1_scaled, im1_recons, occu_mask1)
+
+            s = min(h, w) * 8
+            loss_smooth = self.loss_smooth(flow[:, :2] / s, im1_scaled)
+            if self.cfg.with_bk:
+                loss_warp += self.loss_photomatric(im2_scaled, im2_recons,
+                                                   occu_mask2)
+                loss_smooth += self.loss_smooth(flow[:, 2:] / s, im2_scaled)
+
+                loss_warp /= 2.
+                loss_smooth /= 2.
+
+            weight = self.w_gama ** i  # (len(flows) - 1 - i)
+            total_loss_warp += weight * loss_warp
+            total_loss_smooth += weight * self.cfg.w_smooth * loss_smooth
+        total_loss = total_loss_warp + total_loss_smooth

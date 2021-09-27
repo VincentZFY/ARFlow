@@ -127,7 +127,7 @@ class TrainFramework(BaseTrainerSSL):
                 l_unsupervised = ((flow_t_pred - flow_t).abs() + self.cfg.ar_eps) ** self.cfg.ar_q
                 l_unsupervised = (l_unsupervised * noc_t).mean() / (noc_t.mean() + 1e-7)
 
-                loss += l_unsupervised*cfg.unsupervised_para
+                loss += l_unsupervised*self.cfg.unsupervised_para
 
             # update meters
             if self.cfg.run_unsupervised:

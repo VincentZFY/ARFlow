@@ -31,48 +31,45 @@
         "swap": true
     },
     "loss": {
-        "alpha": 10,
-        "occ_from_back": false,
-        "type": "unflow",
-        "w_l1": 0.0,
-        "w_scales": [
-            1.0,
-            1.0,
-            1.0,
-            1.0,
-            0.0
-        ],
-        "w_sm_scales": [
-            1.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0
-        ],
+        "w_l1": 0.15,
+        "w_ssim": 0.85,
+        "w_ternary": 0.0,
+
+        "w_gama": 0.8,
+
         "w_smooth": 50.0,
-        "w_ssim": 0.0,
-        "w_ternary": 1.0,
+        "alpha": 10,
+
+        "with_bk": true,
         "warp_pad": "border",
-        "with_bk": true
+        "occ_from_back": true,
+
+        "type": "unFlowLossRAFT"
     },
     "supervised_loss": {
+        "w_gama": 0.8,
+
         "div": 0.05,
         "p": 2,
         "eps": 0.01,
         "q": 0.4,
-        "type": "MultiScaleEPE"
+        "type": "LossRAFT"
     },
 
     "model": {
-        "n_frames": 2,
-        "reduce_dense": true,
-        "type": "pwclite",
-        "upsample": true
+        "upsample": true,
+        "small": "small",
+        "corr_radius": 12,
+        "dropout": 0,
+
+        "type": "raft"
     },
     "seed": 0,
     "train": {
         "ar_eps": 0.0,
         "ar_q": 1.0,
+        "raft_iter":[3, 6, 9, 12],
+        "raft_step": [30, 60, 120, 150],
         "batch_size": 24,
         "beta": 0.999,
         "bias_decay": 0,
