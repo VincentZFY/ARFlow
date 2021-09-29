@@ -22,13 +22,16 @@ class TrainFramework(BaseTrainerSSL):
         am_batch_time = AverageMeter()
         am_data_time = AverageMeter()
 
-        if self.cfg.run_unsupervised:
-            if self.cfg.run_weak:
-                key_meter_names = ['loss', 'l_supervised', 'EPE_0', 'EPE_1', 'EPE_2', 'EPE_3', 'l_weak', 'l_unsupervised', 'l_ph', 'l_sm', 'flow_mean']
+        if self.cfg.run_supervised:
+            if self.cfg.run_unsupervised:
+                if self.cfg.run_weak:
+                    key_meter_names = ['loss', 'l_supervised', 'EPE_0', 'EPE_1', 'EPE_2', 'EPE_3', 'l_weak', 'l_unsupervised', 'l_ph', 'l_sm', 'flow_mean']
+                else:
+                    key_meter_names = ['loss', 'l_supervised', 'EPE_0', 'EPE_1', 'EPE_2', 'EPE_3', 'l_unsupervised']
             else:
-                 key_meter_names = ['loss', 'l_supervised', 'EPE_0', 'EPE_1', 'EPE_2', 'EPE_3', 'l_unsupervised']
+                key_meter_names = ['loss', 'l_supervised', 'EPE_0', 'EPE_1', 'EPE_2', 'EPE_3']
         else:
-            key_meter_names = ['loss','l_supervised','EPE_0', 'EPE_1', 'EPE_2', 'EPE_3']
+            key_meter_names = ['loss', 'l_weak', 'l_unsupervised', 'l_ph', 'l_sm', 'flow_mean']
         key_meters = AverageMeter(i=len(key_meter_names), precision=4)
 
         self.model.train()
@@ -72,6 +75,7 @@ class TrainFramework(BaseTrainerSSL):
             # pred_flows = transforms.ToPILImage()(pred_flows)
             # pred_flows.save('./pred_flow.jpg')
             
+            loss = 0.0
             if self.cfg.run_supervised:
                 s_supervised = {'imgs': [data['img1_ph'].to(self.device),
                                 data['img2_ph'].to(self.device)],
@@ -85,7 +89,6 @@ class TrainFramework(BaseTrainerSSL):
 
                 # measure data loading time
                 am_data_time.update(time.time() - end)
-                loss = 0.0
                 flows_12 = self.model(img_pair, with_bk=False)['flows_fw']
                 
 
@@ -130,17 +133,21 @@ class TrainFramework(BaseTrainerSSL):
                 loss += l_unsupervised*self.cfg.unsupervised_para
 
             # update meters
-            if self.cfg.run_unsupervised:
-                if self.cfg.run_weak:
-                    key_meters.update([loss.item(), l_supervised.item(), pyramid_epe[0].item(), pyramid_epe[1].item(),
-                        pyramid_epe[2].item(), pyramid_epe[3].item(), l_weak.item(), l_unsupervised.item(), l_ph.item(),
-                        l_sm.item(), flow_mean.item()], img_pair.size(0))
+            if self.cfg.run_supervised:
+                if self.cfg.run_unsupervised:
+                    if self.cfg.run_weak:
+                        key_meters.update([loss.item(), l_supervised.item(), pyramid_epe[0].item(), pyramid_epe[1].item(),
+                            pyramid_epe[2].item(), pyramid_epe[3].item(), l_weak.item(), l_unsupervised.item(), l_ph.item(),
+                            l_sm.item(), flow_mean.item()], img_pair.size(0))
+                    else:
+                        key_meters.update([loss.item(), l_supervised.item(), pyramid_epe[0].item(), pyramid_epe[1].item(),
+                            pyramid_epe[2].item(), pyramid_epe[3].item(), l_unsupervised.item()], img_pair.size(0))
                 else:
                     key_meters.update([loss.item(), l_supervised.item(), pyramid_epe[0].item(), pyramid_epe[1].item(),
-                        pyramid_epe[2].item(), pyramid_epe[3].item(), l_unsupervised.item()], img_pair.size(0))
+                            pyramid_epe[2].item(), pyramid_epe[3].item()], img_pair.size(0))
             else:
-                key_meters.update([loss.item(), l_supervised.item(), pyramid_epe[0].item(), pyramid_epe[1].item(),
-                        pyramid_epe[2].item(), pyramid_epe[3].item()], img_pair.size(0))
+                key_meters.update([loss.item(),  l_weak.item(), l_unsupervised.item(), l_ph.item(),
+                            l_sm.item(), flow_mean.item()], img_pair.size(0))
 
             # compute gradient and do optimization step
             self.optimizer.zero_grad()

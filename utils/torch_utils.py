@@ -33,6 +33,8 @@ def load_checkpoint(model_path):
         state_dict = (weights['state_dict'])
     else:
         state_dict = weights
+    state_dict = {k[len('module.'):] if k.startswith('module.') else k:
+                      v for k, v in state_dict.items()}
     return epoch, state_dict
 
 

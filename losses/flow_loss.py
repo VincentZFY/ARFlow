@@ -191,8 +191,14 @@ class unFlowLossRAFT(unFlowLoss):
         self.w_gama = cfg.w_gama
 
     def forward(self, output, target):
-        flows = output
-        b, _, h, w = flows[0].size()
+        pyramid_flows = output
+        b, _, h, w = pyramid_flows[0].size()
+
+
+        pyramid_smooth_losses = []
+        pyramid_warp_losses = []
+        self.pyramid_occu_mask1 = []
+        self.pyramid_occu_mask2 = []
 
         im1_origin = target[:, :3]
         im2_origin = target[:, 3:]
@@ -202,26 +208,20 @@ class unFlowLossRAFT(unFlowLoss):
         im2_scaled = F.interpolate(im2_origin, (h, w), mode='area')
 
         total_loss_warp = total_loss_smooth = 0
-        for i, flow in enumerate(flows):
+        for i, flow in enumerate(pyramid_flows):
             im1_recons = flow_warp(im2_scaled, flow[:, :2], pad=self.cfg.warp_pad)
             im2_recons = flow_warp(im1_scaled, flow[:, 2:], pad=self.cfg.warp_pad)
 
-            # import cv2
-            # cv2.imshow('img1', tensor2img(im1_scaled))
-            # cv2.imshow('img1_r', tensor2img(im1_recons))
-            # cv2.imshow('img2', tensor2img(im2_scaled))
-            # cv2.imshow('img2_r', tensor2img(im2_recons))
-            #
-            # cv2.imshow('flow_12', batch_flow_vis(flow[:, :2]))
-            # cv2.imshow('flow_21', batch_flow_vis(flow[:, 2:]))
-            # cv2.waitKey()
 
             if self.cfg.occ_from_back:
                 occu_mask1 = 1 - get_occu_mask_backward(flow[:, 2:], th=0.2)
                 occu_mask2 = 1 - get_occu_mask_backward(flow[:, :2], th=0.2)
             else:
                 occu_mask1 = 1 - get_occu_mask_bidirection(flow[:, :2], flow[:, 2:])
-                occu_mask2 = 1 - get_occu_mask_bidirection(flow[:, 2:], flow[:, :2])
+                occu_mask2 = 1 - get_occu_mask_bidirection(flow[:, 2:], flow[:,:2])
+            
+            self.pyramid_occu_mask1.append(occu_mask1)
+            self.pyramid_occu_mask2.append(occu_mask2)
 
             loss_warp = self.loss_photomatric(im1_scaled, im1_recons, occu_mask1)
 
@@ -239,3 +239,4 @@ class unFlowLossRAFT(unFlowLoss):
             total_loss_warp += weight * loss_warp
             total_loss_smooth += weight * self.cfg.w_smooth * loss_smooth
         total_loss = total_loss_warp + total_loss_smooth
+        return total_loss, total_loss_warp, total_loss_smooth, pyramid_flows[0].abs().mean()

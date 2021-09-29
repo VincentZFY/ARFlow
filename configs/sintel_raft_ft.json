@@ -9,7 +9,7 @@
             "gamma": true,
             "gblur": true
         },
-        "root_sintel": "/public/home/zhufy/code/of/of_data/MPI-Sintel-complete",
+        "root_sintel": "/home/zfy/code/of/ARFlow/MPI_Sintel",
         "run_at": true,
         "test_shape": [
             448,
@@ -58,7 +58,7 @@
 
     "model": {
         "upsample": true,
-        "small": "small",
+        "small": false,
         "corr_radius": 12,
         "dropout": 0,
 
@@ -70,7 +70,7 @@
         "ar_q": 1.0,
         "raft_iter":[3, 6, 9, 12],
         "raft_step": [30, 60, 120, 150],
-        "batch_size": 24,
+        "batch_size": 4,
         "beta": 0.999,
         "bias_decay": 0,
         "epoch_num": 10000,
@@ -87,15 +87,15 @@
             704
         ],
         "ot_slic": true,
-        "pretrained_model": "./checkpoints/Sintel/pwclite_raw.tar",
+        "pretrained_model": "/home/zfy/code/of/ARFlow/checkpoints/chairs+things.pth",
         "load_trained":false,
         "print_freq": 10,
         "record_freq": 20,
         "run_supervised":true,
-        "supervised_para":0.0001,
+        "supervised_para":1,
         "run_weak":true,
         "weak_para":1,
-        "run_unsupervised":true,
+        "run_unsupervised":false,
         "unsupervised_para":0.01,
         "run_atst": true,
         "run_ot": false,

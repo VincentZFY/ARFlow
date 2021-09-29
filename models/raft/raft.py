@@ -3,16 +3,17 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from update import BasicUpdateBlock, SmallUpdateBlock
-from extractor import BasicEncoder, SmallEncoder
+from .update import BasicUpdateBlock, SmallUpdateBlock
+from .extractor import BasicEncoder, SmallEncoder
 #from corr import CorrBlock, AlternateCorrBlock
-from corr import CorrBlock
-from utils.utils import bilinear_sampler, coords_grid, upflow8
+from .corr import CorrBlock
+from .utils import bilinear_sampler, coords_grid, upflow8
 
 class RAFT(nn.Module):
     def __init__(self, args):
         super(RAFT, self).__init__()
         self.args = args
+        self.upsample = args.upsample
 
         if args.small:
             self.hidden_dim = hdim = 96

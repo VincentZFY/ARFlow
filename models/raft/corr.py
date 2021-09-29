@@ -1,6 +1,6 @@
 import torch
 import torch.nn.functional as F
-from ..utils import bilinear_sampler, coords_grid
+from .utils import bilinear_sampler, coords_grid
 
 class CorrBlock:
     def __init__(self, fmap1, fmap2, num_levels=4, radius=4):
